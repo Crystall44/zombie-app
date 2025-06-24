@@ -183,13 +183,17 @@ export class Human {
             this.color = `hsl(${240 - (120 * this.infectionProgress/100)}, 100%, 50%)`
         }
     }
+
+    isTooClose(x, y, minDist) {
+        return Math.hypot(this.x - x, this.y - y) < minDist;
+    }
 }
 
 //Класс Зомби
 export class Zombie {
     constructor(x, y){
-        this.x = x
-        this.y = y
+        this.x = x || Math.random() * 700 + 50
+        this.y = y || Math.random() * 500 + 50
         this.radius = 8
         this.speed = 0.9
         this.detectionRadius = 150

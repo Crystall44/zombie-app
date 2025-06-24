@@ -14,13 +14,40 @@ import {Human, Zombie } from './models.js'
           healthy: 0,
           infected: 0,
           zombies: 0
-        }
+        },
+        simulationEnd: false,
+        minDist: 100,
+        isRunning: false,
+        isPaused:false,
+        simulationStarted: false
       }
     },
     mounted() {
       this.initWorld()
     },
+    computed: {
+      mainButtonText() {
+        if(this.simulationEnd) return 'Начать заново';
+        if(this.isPaused) return 'Продолжить'
+        return this.isRunning ? 'Остановить' : 'Начать симуляцию';
+      }
+    },
     methods: {
+          handleControlClick() {
+            if(this.isRunning) {
+              this.stopSim();
+              this.isRunning = false;
+              this.isPaused = true;
+            } else {
+              if(!this.simulationStarted) {
+                this.initWorld();
+              }
+              this.startSim();
+              this.isRunning = true;
+              this.isPaused = false;
+            }
+          },
+
           initWorld() {
             this.ctx = this.$refs.canvas.getContext('2d')
 
@@ -28,12 +55,32 @@ import {Human, Zombie } from './models.js'
             for(let i = 0; i < this.population; i++) {
               this.humans.push(new Human(Math.random() * 700 + 50, Math.random() * 500 + 50))
             }
-            //Доработат!!!!
-            //Первый Зомби
-            this.zombies.push(new Zombie(100, 100))
+
+            this.spawnZombie(50);
 
             this.lastTime = performance.now()
             this.drawWorld()
+            this.simulationStarted = true;
+          },
+
+          spawnZombie(minDist) {
+            let attempts = 0;
+            const maxAttempts = 100;
+
+            while (attempts < maxAttempts) {
+              const x = Math.random() * 700 + 50;
+              const y = Math.random() * 500 + 50;
+
+              const tooClose = this.humans.some(human => human.isTooClose(x, y, minDist));
+              if(!tooClose) {
+                this.zombies.push(new Zombie(x, y));
+                return;
+              }
+
+              attempts++;
+            }
+
+            this.zombies.push(new Zombie(Math.random() * 700 + 50, Math.random() * 500 + 50));
           },
 
           drawWorld() {
@@ -79,11 +126,33 @@ import {Human, Zombie } from './models.js'
           },
 
           startSim() {
+            this.simulationEnd = false;
+            if(!this.simulationStarted) {
+              this.initWorld();
+            }
             this.lastTime = performance.now()
             this.animationId = requestAnimationFrame(this.update)
           },
 
+          stopSim() {
+            cancelAnimationFrame(this.animationId);
+          },
+
+          resetSim() {
+            this.stopSim();
+            this.humans = [];
+            this.zombies = [];
+            this.simulationEnd = false;
+            this.simulationStarted = false;
+            this.isPaused = false;
+            this.isRunning = false;
+            this.stats = { healthy: 0, infected: 0, zombies: 0 };
+            this.initWorld();
+          },
+
           update(currentTime) {
+            if(!this.isRunning) return;
+
             const deltaTime = currentTime - this.lastTime
             this.lastTime = currentTime
 
@@ -122,11 +191,13 @@ import {Human, Zombie } from './models.js'
             //Перерисовка
             this.drawWorld()
 
-            //Продолжаем пока есть здоровые люди
-            if(this.humans.some(h => h.infectionProgress === 0)) {
+            //Продолжаем пока не осталось людей и зараженных
+            if(this.humans.length > 0) {
               this.animationId = requestAnimationFrame(this.update)
             } else {
-              console.log("Все заражены или превратились в зомби!")
+              this.simulationEnd = true;
+              this.isRunning = false;
+              return;
             }
           },
 
@@ -138,6 +209,10 @@ import {Human, Zombie } from './models.js'
             }
           },
 
+          showEndMessage(message) {
+            alert(message);
+          },
+
           beforeDestroy() {
             cancelAnimationFrame(this.animationId)
           }
@@ -147,16 +222,38 @@ import {Human, Zombie } from './models.js'
 
 <template>
   <div class="simulation-container">
-    <div class="simulation-wrapper">
-      <canvas ref="canvas" width="1000" height="700"></canvas>
-      <div class="controls">
-        <div class="controls-raw">
-          <button @click="startSim">Старт</button>
-          <div class="stats">
-            <p>Здоровые люди: {{ stats.healthy }}</p>
-            <p>Зараженные: {{ stats.infected }}</p>
-            <p>Зомби: {{ stats.zombies }}</p>
-          </div>
+    <canvas ref="canvas" width="800" height="600" class="simulation-canvas"></canvas>
+    <div class="controls-panel">
+      <div class="buttons-container">
+      <button @click="handleControlClick" :class="['control-button', {
+        'stop-button': isRunning,
+        'continue-button': isPaused && !simulationEnd,
+        'start-button': !isRunning && !isPaused
+        }]">{{ mainButtonText }}</button>
+      <button 
+        v-if="isPaused || simulationEnd"
+        @click="resetSim"
+        class="reset-button"
+      >Начать заново</button>
+      </div>
+
+      <div v-if="simulationEnd" class="end-message">
+        <h3>Симуляция завершена!</h3>
+        <p>Все люди превратились в зомби.</p>
+      </div>
+
+      <div class="stats">
+        <div class="stat-item">
+          <span class="stat-label">Здоровые:</span>
+          <span class="stat-value">{{ stats.healthy }}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Зараженные:</span>
+          <span class="stat-value">{{ stats.infected }}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Зомби:</span>
+          <span class="stat-value">{{ stats.zombies }}</span>
         </div>
       </div>
     </div>
@@ -164,59 +261,132 @@ import {Human, Zombie } from './models.js'
 </template>
 
 <style>
+
 .simulation-container {
   display: flex;
-  justify-content:center;
-  padding:20px;
-  font-family:Arial, sans-serif;
+  justify-content: center;
+  padding: 20px;
+  max-width: 100vw;
+  overflow: auto;
 }
 
-.simulation-wrapper{
-  display:flex;
-  gap:30px;
-  max-width:1400px;
-  width:100%;
-}
-
-canvas {
+.simulation-canvas {
+  width: 800px;
+  height:600px;
   border: 1px solid #333;
-  background: #f5f5f5;
-  width:70%;
-  max-width:1000px;
-  height:auto;
-  aspect-ratio:10/7;
+  background: white;
+  flex-shrink: 0;
 }
 
-.controls-raw {
-  display: flex;
-  align-items:center;
-  gap:20px;
-  background:#f8f8f8;
-  padding:15px;
-  border-radius:8px;
-  box-shadow:0 2px 10px rgba(0,0,0,0.1);
+.controls-panel {
+  margin-left:20px;
+  min-width:200px;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  display:flex;
+  flex-direction:column;
 }
 
-button {
-  padding: 8px 16px;
+.control-button {
+  padding: 12px 24px;
+  margin-bottom:20px;
+  font-weight:normal;
   background: #3498db;
-  color:white;
+  color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
-  font-size:14px;
-  white-space:nowrap;
+  font-size: 16px;
+  transition: all 0.3s;
+}
+
+.buttons-container {
+  display: flex;
+  flex-direction: column;
+  gap:10px;
+  margin-top:20px;
+}
+
+.stop-button {
+  background: #e74c3c;
+}
+
+.continue-button {
+  background: #2ecc71;
+}
+
+.reset-button {
+  padding: 12px 24px;
+  margin-bottom:20px;
+  font-weight:normal;
+  background: #f39c12;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.3s;
+  
+}
+
+.reset-button:hover {
+  background: #e67e22;
+}
+
+.control-button:hover, .reset-button:hover {
+  opacity: 0.9;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
 .stats {
   display: flex;
-  gap: 15px;
+  flex-direction: column;
+  gap: 10px;
+  margin-top:auto;
+  padding-top:20px;
+  border-rop:1px solid #eee;
 }
 
 .stats p {
   margin: 0;
+  padding: 8px 12px;
+  background: white;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.stat-item {
+  margin: 8px 0;
+  fonr-size:14px;
+}
+
+.stat-label {
+  display:inline-block;
+  width: 100px;
+  color: #555;
+}
+
+.stat-value {
+  font-weight:bold;
   color: #333;
-  font-size:14px;
-  white-space:nowrap;
+}
+
+.end-message {
+  margin-top:20px;
+  padding:15px;
+  background: #f8f8f8;
+  border-radius: 5px;
+  border-left: 4px solid #e74c3c;
+  animation: fadeIn 0.5s;
+}
+
+.end-message h3 {
+  color: #e74c3c;
+  margin-bottom:5px;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 </style>
