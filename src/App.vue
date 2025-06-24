@@ -146,36 +146,55 @@ import {Human, Zombie } from './models.js'
 </script>
 
 <template>
-  <div class="simulation">
-    <canvas ref="canvas" width="800" height="600"></canvas>
-    <div class="controls">
-      <button @click="startSim">Старт</button>
-      <div class="stats">
-        <p>Здоровые люди: {{ stats.healthy }}</p>
-        <p>Зараженные: {{ stats.infected }}</p>
-        <p>Зомби: {{ stats.zombies }}</p>
+  <div class="simulation-container">
+    <div class="simulation-wrapper">
+      <canvas ref="canvas" width="1000" height="700"></canvas>
+      <div class="controls">
+        <div class="controls-raw">
+          <button @click="startSim">Старт</button>
+          <div class="stats">
+            <p>Здоровые люди: {{ stats.healthy }}</p>
+            <p>Зараженные: {{ stats.infected }}</p>
+            <p>Зомби: {{ stats.zombies }}</p>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <style>
-.simulation {
+.simulation-container {
   display: flex;
-  flex-direction: column;
-  align-items: center;
+  justify-content:center;
+  padding:20px;
   font-family:Arial, sans-serif;
 }
+
+.simulation-wrapper{
+  display:flex;
+  gap:30px;
+  max-width:1400px;
+  width:100%;
+}
+
 canvas {
   border: 1px solid #333;
   background: #f5f5f5;
-  margin-bottom: 10px;
+  width:70%;
+  max-width:1000px;
+  height:auto;
+  aspect-ratio:10/7;
 }
 
-.controls {
+.controls-raw {
   display: flex;
-  gap: 20px;
-  align-items: center;
+  align-items:center;
+  gap:20px;
+  background:#f8f8f8;
+  padding:15px;
+  border-radius:8px;
+  box-shadow:0 2px 10px rgba(0,0,0,0.1);
 }
 
 button {
@@ -185,6 +204,8 @@ button {
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  font-size:14px;
+  white-space:nowrap;
 }
 
 .stats {
@@ -195,5 +216,7 @@ button {
 .stats p {
   margin: 0;
   color: #333;
+  font-size:14px;
+  white-space:nowrap;
 }
 </style>
