@@ -229,13 +229,13 @@ export class Human {
 
 //Класс Зомби
 export class Zombie {
-    constructor(x, y, speed = 0.9, infectionRadius = 20){
+    constructor(x, y, speed = 0.9, infectionRadius = 20, detectionRadius = 150, maxHealth = 5, attackPower = 1, attackRate = 60){
         this.x = x || Math.random() * 700 + 50
         this.y = y || Math.random() * 500 + 50
         this.radius = 8
         this.direction = Math.random() * Math.PI * 2;
         this.speed = speed
-        this.detectionRadius = 150
+        this.detectionRadius = detectionRadius
         this.infectionRadius = infectionRadius
         this.color = 'hsl(120, 100%, 50%)'//Зелёный
         this.currentTarget = null;
@@ -245,28 +245,49 @@ export class Zombie {
         this.isIdle = false;
         this.walkCucle = 0;
         this.walkangle = 0;
+        this.health = 5;
+        this.maxHealth = maxHealth;
+        this.attackPower = attackPower;
+        this.attackCooldown = 0;
+        this.attackRate = attackRate;
     }
 
-    move(humans, medics) {
+    move(humans, medics, guardians) {
         if(this.currentTarget && this.targetLockTimer > 0 && this.currentTarget.infectionProgress === 0) {
             this.targetLockTimer--;
             const dist = Math.hypot(this.x-this.currentTarget.x, this.y-this.currentTarget.y);
-            if(dist < this.detectionRadius * 1.5) {
-                this.chase(this.currentTarget);
+            
+            const isTargetValid = (this.currentTarget.infectionProgress === 0 || this.currentTarget.health > 0) && dist < this.detectionRadius;
+
+            if(isTargetValid) {
+                if(this.currentTarget.health !== undefined && dist < this.infectionRadius) {
+                    this.attack(this.currentTarget);
+                }
+                else if (this.currentTarget.infectionProgress !== undefined) {
+                    this.chase(this.currentTarget);
+                }
                 return;
             }
         }
-        const allHumans = [...humans.filter(h => h.infectionProgress === 0), ...medics.filter(m => m.infectionProgress === 0)];
+        const allHumans = [...humans.filter(h => h.infectionProgress === 0), ...medics.filter(m => m.infectionProgress === 0), ...guardians.filter(g => g.health > 0)];
         const closestHuman = this.findClosestHuman(allHumans);
 
         if (closestHuman && this.isHumanNear(closestHuman)) {
-            //Идёт к человеку
-            this.chase(closestHuman);
             this.currentTarget = closestHuman;
             this.targetLockTimer = 100;
+            if(closestHuman.health !== undefined && this.distanceTo(closestHuman) < this.infectionRadius) {
+                this.attack(closestHuman);
+            } else {
+                this.chase(closestHuman);
+            }
         } else {
             //Случайное блуждание
             this.randomWalk()
+            this.currentTarget = null;
+        }
+
+        if(this.attackCooldown > 0) {
+            this.attackCooldown--;
         }
     }
 
@@ -284,6 +305,17 @@ export class Zombie {
         this.x += Math.cos(this.direction) * this.speed;
         this.y += Math.sin(this.direction) * this.speed;
         this.applyBoundaries();
+    }
+
+    attack(target) {
+        if(this.attackCooldown <= 0 && target.health !== undefined) {
+            target.health -= this.attackPower;
+            this.attackCooldown = this.attackRate;
+
+            if(target.health <= 0) {
+                this.currentTarget = null;
+            }
+        }
     }
 
     randomWalk(){
@@ -325,12 +357,16 @@ export class Zombie {
             return dist < closest.dist ? { human, dist } : closest
           }, { human: null, dist: Infinity }).human
     }
+
+    distanceTo(entity) {
+        return Math.hypot(this.x - entity.x, this.y - entity.y);
+    }
 }
 
 export class Medic {
     constructor(x, y, speed = 1.2, healingPower = 2, detectionRadius = 150, infectionTime = 6000) {
-        this.x = x;
-        this.y = y;
+        this.x = x || Math.random() * 700 + 50
+        this.y = y || Math.random() * 500 + 50
         this.speed = speed;
         this.healingPower = healingPower;
         this.detectionRadius = detectionRadius;
@@ -628,5 +664,116 @@ export class Medic {
 
             this.randomWalk();
         }
+    }
+}
+
+export class Guardian {
+    constructor(x, y, speed = 0.6, detectionRadius = 100, attackRadius = 50, attackPower = 1, attackRate = 60, maxHealth = 3) {
+        this.x = x || Math.random() * 700 + 50
+        this.y = y || Math.random() * 500 + 50
+        this.detectionRadius = detectionRadius; 
+        this.speed = speed;
+        this.radius = 9;
+        this.color = 'hsl(30, 100%, 50%)';
+        this.direction = Math.random() * Math.PI * 2;
+        this.walkCucle = 0;
+        this.currentTarget = null;
+        this.attackPower = attackPower;
+        this.attackCooldown = 0;
+        this.attackRate = attackRate;
+        this.attackRadius = attackRadius;
+        this.maxHealth = maxHealth;
+        this.health = maxHealth;
+    }
+
+    move(zombies) {
+        if(!this.currentTarget || this.currentTarget.health <= 0) {
+            this.currentTarget = this.findClosestZombie(zombies.filter(z => z.health > 0));
+        }
+
+        if(this.currentTarget) {
+            const dist = this.distanceTo(this.currentTarget);
+
+            if(dist < this.attackRadius) {
+                this.attack(this.currentTarget);
+            }
+            else if(dist < this.detectionRadius) {
+                this.chase(this.currentTarget);
+            }
+            else {
+                this.currentTarget = null;
+                this.randomWalk();
+            }
+        } else {
+            this.randomWalk();
+        }
+
+        if(this.attackCooldown > 0) {
+            this.attackCooldown--;
+        }
+    }
+
+    attack(zombie) {
+        if(this.attackCooldown <= 0) {
+            zombie.health -= this.attackPower;
+            this.attackCooldown = this.attackRate;
+            if(zombie.health <= 0) {
+                this.currentTarget = null;
+            }
+        }
+    }
+
+    chase(zombie) {
+        this.direction = Math.atan2(zombie.y - this.y, zombie.x - this.x);
+        this.x += Math.cos(this.direction) * this.speed;
+        this.y += Math.sin(this.direction) * this.speed;
+    }
+
+    randomWalk() {
+        if(Math.random() < 0.005 || !this.direction) {
+            this.direction = Math.random() * Math.PI * 2
+        }
+
+        this.direction += (Math.random() - 0.5) * 0.15;
+
+        this.x += Math.cos(this.direction) * this.speed
+        this.y += Math.sin(this.direction) * this.speed
+
+        const margin = 5;
+        if (this.x <= margin) {
+            this.x = margin;
+            this.direction = Math.atan2(Math.sin(this.direction), -Math.cos(this.direction));
+        }
+        else if (this.x >= 800 - margin) {
+            this.x = 800 - margin;
+            this.direction = Math.atan2(Math.sin(this.direction), -Math.cos(this.direction));
+        }
+  
+        if (this.y <= margin) {
+            this.y = margin;
+            this.direction = Math.atan2(-Math.sin(this.direction), Math.cos(this.direction));
+        }
+        else if (this.y >= 600 - margin) {
+            this.y = 600 - margin;
+            this.direction = Math.atan2(-Math.sin(this.direction), Math.cos(this.direction));
+        }
+    }
+
+    findClosestZombie(zombies) {
+        if(zombies.length === 0) return null;
+
+        return zombies.reduce((closest, zombie) => {
+            const dist = this.distanceTo(zombie);
+            return dist < closest.dist ? {zombie, dist} : closest;
+        }, {zombie: null, dist: Infinity}).zombie;
+    }
+
+    distanceTo(entity) {
+        return Math.hypot(this.x - entity.x, this.y - entity.y);
+    }
+
+    applyBoundaries() {
+        this.x = Math.max(10, Math.min(790, this.x));
+        this.y = Math.max(10, Math.min(590, this.y));
     }
 }

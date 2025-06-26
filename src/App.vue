@@ -1,5 +1,5 @@
 <script>
-import {Human, Zombie, Medic} from './models.js'
+import {Human, Zombie, Medic, Guardian} from './models.js'
 
   export default{
     data() {
@@ -7,14 +7,20 @@ import {Human, Zombie, Medic} from './models.js'
         humans: [],
         zombies: [],
         medics: [],
+        guardians: [],
         ctx: null,
         animationId: null,
         showHumanSettings: false,
+        showZombieSettings: false,
+        showMedicSettings: false,
+        showGuardianSettings: false,
         lastTime: 0,
         stats: {
           healthy: 0,
           infected: 0,
-          zombies: 0
+          zombies: 0,
+          medics: 0,
+          guardians: 0
         },
         simulationEnd: false,
         minDist: 100,
@@ -30,7 +36,23 @@ import {Human, Zombie, Medic} from './models.js'
           detectionRadiusHumans: 100,
           infectionRadius: 25,
           infectionTime: 3000,
-          zombiePopulation: 1
+          zombiePopulation: 1,
+          medicSpeed: 1.2,
+          healingPower: 2,
+          detectionRadiusMedic: 150,
+          infectionTimeMedic: 6000,
+          guardianSpeed: 0.6,
+          detectionRadiusGuardian: 100,
+          attackRadiusGuardian: 50,
+          medicsPopulation: 5,
+          guardiansPopulation: 5,
+          detectionRadiusZombie: 150,
+          maxHealthZombie: 5,
+          attackPowerZombie: 1,
+          attackRateZombie: 60,
+          attackPowerGuardian: 1,
+          attackRateGuardian: 60,
+          maxHealthGuardian: 3
         },
         settings: {
           population: 100,
@@ -43,7 +65,19 @@ import {Human, Zombie, Medic} from './models.js'
           medicSpeed: 1.2,
           healingPower: 2,
           detectionRadiusMedic: 150,
-          infectionTimeMedic: 6000
+          infectionTimeMedic: 6000,
+          guardianSpeed: 0.6,
+          detectionRadiusGuardian: 100,
+          attackRadiusGuardian: 50,
+          medicsPopulation: 5,
+          guardiansPopulation: 5,
+          detectionRadiusZombie: 150,
+          maxHealthZombie: 5,
+          attackPowerZombie: 1,
+          attackRateZombie: 60,
+          attackPowerGuardian: 1,
+          attackRateGuardian: 60,
+          maxHealthGuardian: 3
         }
       }
     },
@@ -74,6 +108,8 @@ import {Human, Zombie, Medic} from './models.js'
             this.ctx = this.$refs.canvas.getContext('2d')
             this.humans = [];
             this.zombies = [];
+            this.medics = [];
+            this.guardians = [];
 
             //Создание людей
             for(let i = 0; i < this.settings.population; i++) {
@@ -81,19 +117,19 @@ import {Human, Zombie, Medic} from './models.js'
               this.humans.push(human);
             }
 
-            for(let i = 0; i < 5; i++) {
+            for(let i = 0; i < this.settings.medicsPopulation; i++) {
               const medic = new Medic(Math.random() * 700 + 50, Math.random() * 500 + 50, this.settings.medicSpeed, this.settings.healingPower, this.settings.detectionRadiusMedic, this.settings.infectionTimeMedic);
               this.medics.push(medic);
+            }
+
+            for(let i = 0; i < this.settings.guardiansPopulation; i++) {
+              const guardian = new Guardian(Math.random() * 700 + 50, Math.random() * 500 + 50, this.settings.guardianSpeed, this.settings.detectionRadiusGuardian, this.settings.attackRadiusGuardian, this.settings.attackPowerGuardian, this.settings.attackRateGuardian, this.settings.maxHealthGuardian);
+              this.guardians.push(guardian);
             }
 
             for(let i = 0; i < this.settings.zombiePopulation; i++) {
               this.spawnZombie(50);
             }
-
-            this.zombies.forEach(zombie => {
-              zombie.speed = this.settings.zombieSpeed;
-              zombie.infectionRadius = this.settings.infectionRadius;
-            })
 
             this.lastTime = performance.now()
             this.drawWorld()
@@ -109,7 +145,7 @@ import {Human, Zombie, Medic} from './models.js'
 
               const tooClose = this.humans.some(human => human.isTooClose(x, y, minDist));
               if(!tooClose) {
-                const zombie = new Zombie(x, y, this.settings.zombieSpeed, this.settings.infectionRadius);
+                const zombie = new Zombie(Math.random() * 700 + 50, Math.random() * 500 + 50, this.settings.zombieSpeed, this.settings.infectionRadius, this.settings.detectionRadiusZombie, this.settings.maxHealthZombie, this.settings.attackPowerZombie, this.settings.attackRateZombie);
                 this.zombies.push(zombie);
                 return;
               }
@@ -117,7 +153,7 @@ import {Human, Zombie, Medic} from './models.js'
               attempts++;
             }
 
-            const zombie = new Zombie(Math.random() * 700 + 50, Math.random() * 500 + 50, this.settings.zombieSpeed, this.settings.infectionRadius);
+            const zombie = new Zombie(Math.random() * 700 + 50, Math.random() * 500 + 50, this.settings.zombieSpeed, this.settings.infectionRadius, this.settings.detectionRadiusZombie, this.settings.maxHealthZombie, this.settings.attackPowerZombie, this.settings.attackRateZombie);
             this.zombies.push(zombie);
             return;
           },
@@ -146,21 +182,7 @@ import {Human, Zombie, Medic} from './models.js'
               }
             })
 
-            //Рисование Зомби
-            this.zombies.forEach(zombie => {
-              this.ctx.fillStyle = zombie.color
-              this.ctx.beginPath()
-              this.ctx.arc(zombie.x, zombie.y, zombie.radius, 0, Math.PI * 2)
-              this.ctx.fill()
-
-              //Зона заражения
-              this.ctx.fillStyle = 'rgba(46, 204, 113, 0.08)'
-              this.ctx.beginPath()
-              this.ctx.arc(zombie.x, zombie.y, zombie.infectionRadius, 0, Math.PI * 2)
-              this.ctx.fill()
-            })
-
-            this.medics.forEach(medic => {
+             this.medics.forEach(medic => {
               // Основной круг медика (как у людей и зомби)
               this.ctx.fillStyle = medic.color;
               this.ctx.beginPath();
@@ -190,18 +212,59 @@ import {Human, Zombie, Medic} from './models.js'
                   this.ctx.beginPath();
                   this.ctx.arc(medic.x, medic.y, medic.radius + 3 + pulse, 0, Math.PI*2);
                   this.ctx.stroke();
-                  
-                  // Простая линия к цели (если есть)
-                  if(medic.currentTarget) {
-                      this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.3)';
-                      this.ctx.lineWidth = 1;
-                      this.ctx.beginPath();
-                      this.ctx.moveTo(medic.x, medic.y);
-                      this.ctx.lineTo(medic.currentTarget.x, medic.currentTarget.y);
-                      this.ctx.stroke();
-                  }
               }
-          });
+              })
+
+              this.guardians.forEach(guardian => {
+                this.ctx.fillStyle = guardian.color;
+                this.ctx.beginPath();
+                this.ctx.arc(guardian.x, guardian.y, guardian.radius, 0, Math.PI*2);
+                this.ctx.fill();
+
+                this.ctx.fillStyle = 'rgba(255, 165, 0, 0.08)'; // Оранжевый с низкой прозрачностью
+                this.ctx.beginPath();
+                this.ctx.arc(guardian.x, guardian.y, guardian.attackRadius, 0, Math.PI * 2);
+                this.ctx.fill();
+
+                if(guardian.health < guardian.maxHealth) {
+                const healthWidth = 20;
+                const healthHeight = 3;
+                const healthX = guardian.x - healthWidth/2;
+                const healthY = guardian.y - guardian.radius - 5;
+
+                this.ctx.fillStyle = "rgba(0,0,0,0.5)";
+                this.ctx.fillRect(healthX, healthY, healthWidth, healthHeight);
+                const hpPercent = guardian.health / guardian.maxHealth;
+                this.ctx.fillStyle = hpPercent > 0.6 ? '#2ecc71' : hpPercent > 0.3 ? '#f39c12' : 'e74c3c';
+                this.ctx.fillRect(healthX, healthY, healthWidth * hpPercent, healthHeight);
+              }
+              })
+
+            //Рисование Зомби
+            this.zombies.forEach(zombie => {
+              this.ctx.fillStyle = zombie.color
+              this.ctx.beginPath()
+              this.ctx.arc(zombie.x, zombie.y, zombie.radius, 0, Math.PI * 2)
+              this.ctx.fill()
+              if(zombie.health < zombie.maxHealth) {
+                const healthWidth = 20;
+                const healthHeight = 3;
+                const healthX = zombie.x - healthWidth/2;
+                const healthY = zombie.y - zombie.radius - 5;
+
+                this.ctx.fillStyle = "rgba(0,0,0,0.5)";
+                this.ctx.fillRect(healthX, healthY, healthWidth, healthHeight);
+                const hpPercent = zombie.health / zombie.maxHealth;
+                this.ctx.fillStyle = hpPercent > 0.6 ? '#2ecc71' : hpPercent > 0.3 ? '#f39c12' : 'e74c3c';
+                this.ctx.fillRect(healthX, healthY, healthWidth * hpPercent, healthHeight);
+              }
+
+              //Зона заражения
+              this.ctx.fillStyle = 'rgba(46, 204, 113, 0.08)'
+              this.ctx.beginPath()
+              this.ctx.arc(zombie.x, zombie.y, zombie.infectionRadius, 0, Math.PI * 2)
+              this.ctx.fill()
+            })
 
             //Статистика
             this.updateStats()
@@ -249,11 +312,12 @@ import {Human, Zombie, Medic} from './models.js'
             this.humans = [];
             this.zombies = [];
             this.medics = [];
+            this.guardians = [];
             this.simulationEnd = false;
             this.simulationStarted = false;
             this.isPaused = false;
             this.isRunning = false;
-            this.stats = { healthy: 0, infected: 0, zombies: 0 };
+            this.stats = { healthy: 0, infected: 0, zombies: 0, medics: 0, guardians: 0 };
             this.showSettings = true;
             this.initWorld();
           },
@@ -266,8 +330,9 @@ import {Human, Zombie, Medic} from './models.js'
 
             //Двигаем всех
             this.humans.forEach(h => h.move(this.zombies, this.medics))
-            this.zombies.forEach(z => z.move(this.humans, this.medics))
+            this.zombies.forEach(z => z.move(this.humans, this.medics, this.guardians))
             this.medics.forEach(m => m.move(this.humans, this.zombies, this.medics))
+            this.guardians.forEach(g => g.move(this.zombies))
 
             //Проверяем заражение
             this.humans.forEach(human => {
@@ -316,13 +381,28 @@ import {Human, Zombie, Medic} from './models.js'
               }
               return true
             })
+
+            this.zombies = this.zombies.filter(z => {
+              if(z.health <= 0) {
+                return false;
+              }
+              return true;
+            })
+
+            this.guardians = this.guardians.filter(g => {
+              if(g.health <= 0) {
+                return false;
+              }
+              return true;
+            })
+
             this.updateStats()
 
             //Перерисовка
             this.drawWorld()
 
             //Продолжаем пока не осталось людей и зараженных
-            if(this.humans.length > 0 || this.medics.length > 0) {
+            if((this.humans.length > 0 || this.medics.length > 0) && (this.zombies.length > 0)) {
               this.animationId = requestAnimationFrame(this.update)
             } else {
               this.simulationEnd = true;
@@ -336,7 +416,8 @@ import {Human, Zombie, Medic} from './models.js'
               healthy: this.humans.filter(h => h.infectionProgress === 0).length,
               infected: (this.humans.filter(h => h.infectionProgress > 0).length + this.medics.filter(m => m.infectionProgress > 0).length),
               zombies: this.zombies.length,
-              medics: this.medics.filter(m => m.infectionProgress === 0).length
+              medics: this.medics.filter(m => m.infectionProgress === 0).length,
+              guardians: this.guardians.filter(g => g.health > 0).length
             }
           },
 
@@ -369,8 +450,10 @@ import {Human, Zombie, Medic} from './models.js'
       </div>
 
       <div v-if="simulationEnd" class="end-message">
-        <h3>Симуляция завершена!</h3>
-        <p>Все люди превратились в зомби.</p>
+        <h3>Симуляция завершена.</h3>
+        <p v-if="zombies.length === 0" class="win-message">Все зомби уничтожены!🎉</p>
+        <p v-else-if="humans.length === 0 && medics.length === 0 && guardians.length === 0">Все люди превратились в зомби!</p>
+        <p v-else-if="humans.length === 0 && medics.length === 0 && guardians.length > 0">Защитники устояли, но все мирные жители погибли...</p>
       </div>
 
       <div v-if="!simulationStarted" class="settings-panel">
@@ -397,18 +480,97 @@ import {Human, Zombie, Medic} from './models.js'
         </div>
 
         <div class="setting-item">
-          <label>Количество зомби: {{  settings.zombiePopulation  }}</label>
+          <div class="setting-label-with-icon">
+            <label>Количество зомби: {{  settings.zombiePopulation  }}</label>
+            <button @click="showZombieSettings = !showZombieSettings" class="settings-icon-button" title="Настройки">⚙️</button>
+          </div>
           <input type="range" v-model.number="settings.zombiePopulation" min = "1" max = "50" step="1" class="slider">
+          <div v-if="showZombieSettings" class="mini-settings-panel">
+            <div class="mini-setting-item">
+              <label>Скорость зомби: {{  settings.zombieSpeed  }}</label>
+              <input type="range" v-model.number="settings.zombieSpeed" min = "0.1" max = "5" step="0.1" class="slider">
+            </div>
+            <div class="mini-setting-item">
+              <label>Радиус заражения: {{  settings.infectionRadius  }}</label>
+              <input type="range" v-model.number="settings.infectionRadius" min = "5" max = "100" step="5" class="slider">
+            </div>
+            <div class="mini-setting-item">
+              <label>Дальность видимости: {{  settings.detectionRadiusZombie  }}</label>
+              <input type="range" v-model.number="settings.detectionRadiusZombie" min = "25" max = "300" step="5" class="slider">
+            </div>
+            <div class="mini-setting-item">
+              <label>Здоровье зомби: {{  settings.maxHealthZombie  }}</label>
+              <input type="range" v-model.number="settings.maxHealthZombie" min = "1" max = "25" step="1" class="slider">
+            </div>
+            <div class="mini-setting-item">
+              <label>Сила аттаки: {{  settings.attackPowerZombie  }}</label>
+              <input type="range" v-model.number="settings.attackPowerZombie" min = "1" max = "25" step="1" class="slider">
+            </div>
+            <div class="mini-setting-item">
+              <label>Задержка между аттаками: {{  (settings.attackRateZombie/60).toFixed(1)  }}</label>
+              <input type="range" v-model.number="settings.attackRateZombie" min = "30" max = "600" step="30" class="slider">
+            </div>
+          </div>
         </div>
 
         <div class="setting-item">
-          <label>Скорость зомби: {{  settings.zombieSpeed  }}</label>
-          <input type="range" v-model.number="settings.zombieSpeed" min = "0.1" max = "5" step="0.1" class="slider">
+          <div class="setting-label-with-icon">
+            <label>Количество медиков: {{  settings.medicsPopulation  }}</label>
+            <button @click="showMedicSettings = !showMedicSettings" class="settings-icon-button" title="Настройки">⚙️</button>
+          </div>
+          <input type="range" v-model.number="settings.medicsPopulation" min = "0" max = "25" step = "1" class = "slider">
+          <div v-if="showMedicSettings" class="mini-settings-panel">
+            <div class="mini-setting-item">
+              <label>Скорость медиков: {{  settings.medicSpeed  }}</label>
+              <input type="range" v-model.number="settings.medicSpeed" min = "0.1" max = "5" step = "0.1" class = "slider">
+            </div>
+            <div class="mini-setting-item">
+              <label>Скорость лечения: {{  settings.healingPower  }}</label>
+              <input type="range" v-model.number="settings.healingPower" min = "0.5" max = "20" step = "0.5" class = "slider">
+            </div>
+            <div class="mini-setting-item">
+              <label>Дальность видимости: {{  settings.detectionRadiusMedic  }}</label>
+              <input type="range" v-model.number="settings.detectionRadiusMedic" min = "25" max = "300" step = "5" class = "slider">
+            </div>
+            <div class="mini-setting-item">
+              <label>Время превращения в зомби(сек): {{  (settings.infectionTimeMedic/1000).toFixed(1)  }}</label>
+              <input type="range" v-model.number="settings.infectionTimeMedic" min = "100" max = "10000" step = "100" class = "slider">
+            </div>
+          </div>
         </div>
-
+        
         <div class="setting-item">
-          <label>Радиус заражения: {{  settings.infectionRadius  }}</label>
-          <input type="range" v-model.number="settings.infectionRadius" min = "5" max = "100" step="5" class="slider">
+        <div class="setting-label-with-icon">
+          <label>Количество защитников: {{ settings.guardiansPopulation }}</label>
+          <button @click="showGuardianSettings = !showGuardianSettings" class="settings-icon-button" title="Настройки">⚙️</button>
+        </div>
+          <input type="range" v-model.number="settings.guardiansPopulation" min = "0" max = "25" step = "1" class = "slider">
+          <div v-if="showGuardianSettings" class="mini-settings-panel">
+            <div class="mini-settings-item">
+              <label>Скорость защитников: {{  settings.guardianSpeed  }}</label>
+              <input type="range" v-model.number="settings.guardianSpeed" min = "0.1" max = "5" step = "0.1" class = "slider">
+            </div>
+            <div class="mini-settings-item">
+              <label>Дальность видимости: {{  settings.detectionRadiusGuardian  }}</label>
+              <input type="range" v-model.number="settings.detectionRadiusGuardian" min = "25" max = "300" step = "5" class = "slider">
+            </div>
+            <div class="mini-settings-item">
+              <label>Дальность аттаки: {{  settings.attackRadiusGuardian  }}</label>
+              <input type="range" v-model.number="settings.attackRadiusGuardian" min = "5" max = "100" step = "5" class = "slider">
+            </div>
+            <div class="mini-settings-item">
+              <label>Сила аттаки: {{  settings.attackPowerGuardian  }}</label>
+              <input type="range" v-model.number="settings.attackPowerGuardian" min = "1" max = "25" step = "1" class = "slider">
+            </div>
+            <div class="mini-settings-item">
+              <label>Задержка между аттаками: {{  settings.attackRateGuardian  }}</label>
+              <input type="range" v-model.number="settings.attackRateGuardian" min = "30" max = "600" step = "30" class = "slider">
+            </div>
+            <div class="mini-settings-item">
+              <label>Здоровье защитника: {{  settings.maxHealthGuardian  }}</label>
+              <input type="range" v-model.number="settings.maxHealthGuardian" min = "1" max = "25" step = "1" class = "slider">
+            </div>
+          </div>
         </div>
 
         <div class="settings-button">
@@ -417,6 +579,7 @@ import {Human, Zombie, Medic} from './models.js'
           <button @click="resetSettings" class="settings-reset-button">Сбросить</button>
         </div>
       </div>
+
 
       <div v-if="simulationStarted || isRunning" class="stats">
         <div class="stat-item">
@@ -434,6 +597,10 @@ import {Human, Zombie, Medic} from './models.js'
         <div class="stat-item">
           <span class="stat-label">Медики:</span>
           <span class="stat-value">{{ stats.medics }}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Защитники:</span>
+          <span class="stat-value">{{ stats.guardians }}</span>
         </div>
       </div>
     </div>
