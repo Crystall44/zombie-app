@@ -1,5 +1,8 @@
 <script>
-import {Human, Zombie, Medic, Guardian} from './models.js'
+import {Zombie} from './components/Zombie.js'
+import {Human} from './components/Human.js'
+import {Medic} from './components/Medic.js'
+import {Guardian} from './components/Guardian.js'
 
   export default{
     data() {
@@ -14,13 +17,18 @@ import {Human, Zombie, Medic, Guardian} from './models.js'
         showZombieSettings: false,
         showMedicSettings: false,
         showGuardianSettings: false,
+        startTime: 0,
+        elapsedTime: 0,
+        pauseTime: 0,
+        lastPauseTime: 0,
         lastTime: 0,
         stats: {
           healthy: 0,
           infected: 0,
           zombies: 0,
           medics: 0,
-          guardians: 0
+          guardians: 0,
+          time: '00:00'
         },
         simulationEnd: false,
         minDist: 100,
@@ -82,12 +90,12 @@ import {Human, Zombie, Medic, Guardian} from './models.js'
       }
     },
     mounted() {
-      this.initWorld()
+      this.initWorld();
     },
     computed: {
       mainButtonText() {
         if(this.simulationEnd) return 'Начать заново';
-        if(this.isPaused) return 'Продолжить'
+        if(this.isPaused) return 'Продолжить';
         return this.isRunning ? 'Остановить' : 'Начать симуляцию';
       }
     },
@@ -105,7 +113,7 @@ import {Human, Zombie, Medic, Guardian} from './models.js'
           },
 
           initWorld() {
-            this.ctx = this.$refs.canvas.getContext('2d')
+            this.ctx = this.$refs.canvas.getContext('2d');
             this.humans = [];
             this.zombies = [];
             this.medics = [];
@@ -131,8 +139,8 @@ import {Human, Zombie, Medic, Guardian} from './models.js'
               this.spawnZombie(50);
             }
 
-            this.lastTime = performance.now()
-            this.drawWorld()
+            this.lastTime = performance.now();
+            this.drawWorld();
           },
 
           spawnZombie(minDist) {
@@ -159,26 +167,22 @@ import {Human, Zombie, Medic, Guardian} from './models.js'
           },
 
           drawWorld() {
-            this.ctx.clearRect(0,0,800,600)
+            this.ctx.clearRect(0,0,800,600);
 
             //Рисование людей
             this.humans.forEach(human => {
-              //Меняем цвет при заражении
-              this.ctx.fillStyle = human.infectionProgress > 0 ?
-              `hsl(${240 - (120 * human.infectionProgress/100)}, 100%, 50%)` :
-              human.color
-
-              this.ctx.beginPath()
-              this.ctx.arc(human.x, human.y, human.radius, 0, Math.PI * 2)
-              this.ctx.fill()
+              this.ctx.fillStyle = human.color;
+              this.ctx.beginPath();
+              this.ctx.arc(human.x, human.y, human.radius, 0, Math.PI * 2);
+              this.ctx.fill();
 
               //Индикатор заражения
               if(human.infectionProgress > 0) {
-                this.ctx.strokeStyle = 'rgba(255, 0, 0, 0.7)'
-                this.ctx.lineWidth = 2
-                this.ctx.beginPath()
-                this.ctx.arc(human.x, human.y, human.radius + 3, -Math.PI/2, -Math.PI/2 + 2 * Math.PI * human.infectionProgress/100)
-                this.ctx.stroke()
+                this.ctx.strokeStyle = 'rgba(200, 0, 0, 0.7)';
+                this.ctx.lineWidth = 2;
+                this.ctx.beginPath();
+                this.ctx.arc(human.x, human.y, human.radius + 3, -Math.PI/2, -Math.PI/2 + 2 * Math.PI * human.infectionProgress/100);
+                this.ctx.stroke();
               }
             })
 
@@ -191,7 +195,7 @@ import {Human, Zombie, Medic, Guardian} from './models.js'
 
               // Индикатор заражения (если медик заражен) - как у людей
               if(medic.infectionProgress > 0) {
-                  this.ctx.strokeStyle = 'rgba(255, 0, 0, 0.7)';
+                  this.ctx.strokeStyle = 'rgba(200, 0, 0, 0.7)';
                   this.ctx.lineWidth = 2;
                   this.ctx.beginPath();
                   this.ctx.arc(
@@ -207,7 +211,7 @@ import {Human, Zombie, Medic, Guardian} from './models.js'
               if (medic.isHealing) {
                   // Пульсирующий зеленый круг
                   const pulse = Math.sin(Date.now() / 300) * 2; // Простая пульсация
-                  this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
+                  this.ctx.strokeStyle = 'rgba(100, 255, 180, 0.8)';
                   this.ctx.lineWidth = 2;
                   this.ctx.beginPath();
                   this.ctx.arc(medic.x, medic.y, medic.radius + 3 + pulse, 0, Math.PI*2);
@@ -216,12 +220,20 @@ import {Human, Zombie, Medic, Guardian} from './models.js'
               })
 
               this.guardians.forEach(guardian => {
+                this.ctx.save();
                 this.ctx.fillStyle = guardian.color;
                 this.ctx.beginPath();
                 this.ctx.arc(guardian.x, guardian.y, guardian.radius, 0, Math.PI*2);
                 this.ctx.fill();
 
-                this.ctx.fillStyle = 'rgba(255, 165, 0, 0.08)'; // Оранжевый с низкой прозрачностью
+                // Металлический ободок (для эффекта брони)
+                this.ctx.strokeStyle = 'hsla(200, 30%, 80%, 0.8)';
+                this.ctx.lineWidth = 2;
+                this.ctx.beginPath();
+                this.ctx.arc(guardian.x, guardian.y, guardian.radius + 1, 0, Math.PI*2);
+                this.ctx.stroke();
+
+                this.ctx.fillStyle = 'rgba(80, 60, 160, 0.08)';
                 this.ctx.beginPath();
                 this.ctx.arc(guardian.x, guardian.y, guardian.attackRadius, 0, Math.PI * 2);
                 this.ctx.fill();
@@ -235,13 +247,15 @@ import {Human, Zombie, Medic, Guardian} from './models.js'
                 this.ctx.fillStyle = "rgba(0,0,0,0.5)";
                 this.ctx.fillRect(healthX, healthY, healthWidth, healthHeight);
                 const hpPercent = guardian.health / guardian.maxHealth;
-                this.ctx.fillStyle = hpPercent > 0.6 ? '#2ecc71' : hpPercent > 0.3 ? '#f39c12' : 'e74c3c';
+                this.ctx.fillStyle = hpPercent > 0.6 ? '#2ecc71' : hpPercent > 0.3 ? '#f39c12' : '#e74c3c';
                 this.ctx.fillRect(healthX, healthY, healthWidth * hpPercent, healthHeight);
+                this.ctx.restore();
               }
               })
 
             //Рисование Зомби
             this.zombies.forEach(zombie => {
+              this.ctx.save();
               this.ctx.fillStyle = zombie.color
               this.ctx.beginPath()
               this.ctx.arc(zombie.x, zombie.y, zombie.radius, 0, Math.PI * 2)
@@ -255,15 +269,16 @@ import {Human, Zombie, Medic, Guardian} from './models.js'
                 this.ctx.fillStyle = "rgba(0,0,0,0.5)";
                 this.ctx.fillRect(healthX, healthY, healthWidth, healthHeight);
                 const hpPercent = zombie.health / zombie.maxHealth;
-                this.ctx.fillStyle = hpPercent > 0.6 ? '#2ecc71' : hpPercent > 0.3 ? '#f39c12' : 'e74c3c';
+                this.ctx.fillStyle = hpPercent > 0.6 ? '#2ecc71' : hpPercent > 0.3 ? '#f39c12' : '#e74c3c';
                 this.ctx.fillRect(healthX, healthY, healthWidth * hpPercent, healthHeight);
               }
 
               //Зона заражения
-              this.ctx.fillStyle = 'rgba(46, 204, 113, 0.08)'
+              this.ctx.fillStyle = 'rgba(139, 0, 0, 0.1)'
               this.ctx.beginPath()
               this.ctx.arc(zombie.x, zombie.y, zombie.infectionRadius, 0, Math.PI * 2)
               this.ctx.fill()
+              this.ctx.restore();
             })
 
             //Статистика
@@ -297,14 +312,25 @@ import {Human, Zombie, Medic, Guardian} from './models.js'
           },
 
           startSim() {
-            this.simulationEnd = false;
-            this.simulationStarted = true;
+            if(!this.simulationStarted) {
+              this.startTime = performance.now();
+              this.pauseTime = 0;
+              this.elapsedTime = 0;
+              this.simulationEnd = false;
+              this.simulationStarted = true;
+            } else {
+              if(this.isPaused) {
+                this.pauseTime += performance.now() - this.lastPauseTime;
+                this.isPaused = false;
+              }
+            }
             this.lastTime = performance.now()
             this.animationId = requestAnimationFrame(this.update)
           },
 
           stopSim() {
             cancelAnimationFrame(this.animationId);
+            this.lastPauseTime = performance.now();
           },
 
           resetSim() {
@@ -313,11 +339,15 @@ import {Human, Zombie, Medic, Guardian} from './models.js'
             this.zombies = [];
             this.medics = [];
             this.guardians = [];
+            this.startTime = 0;
+            this.pauseTime = 0;
+            this.lastPauseTime = 0;
+            this.elapsedTime = 0;
             this.simulationEnd = false;
             this.simulationStarted = false;
             this.isPaused = false;
             this.isRunning = false;
-            this.stats = { healthy: 0, infected: 0, zombies: 0, medics: 0, guardians: 0 };
+            this.stats = { healthy: 0, infected: 0, zombies: 0, medics: 0, guardians: 0, time: '00:00'};
             this.showSettings = true;
             this.initWorld();
           },
@@ -412,12 +442,16 @@ import {Human, Zombie, Medic, Guardian} from './models.js'
           },
 
           updateStats() {
+            if(this.simulationStarted && !this.isPaused){
+              this.elapsedTime = performance.now() - this.startTime - this.pauseTime;
+            }
             this.stats = {
               healthy: this.humans.filter(h => h.infectionProgress === 0).length,
               infected: (this.humans.filter(h => h.infectionProgress > 0).length + this.medics.filter(m => m.infectionProgress > 0).length),
               zombies: this.zombies.length,
               medics: this.medics.filter(m => m.infectionProgress === 0).length,
-              guardians: this.guardians.filter(g => g.health > 0).length
+              guardians: this.guardians.filter(g => g.health > 0).length,
+              time: `${Math.floor((Math.floor(this.elapsedTime/1000))/60).toString().padStart(2, '0')}:${(Math.floor(this.elapsedTime/1000) % 60).toString().padStart(2, '0')}`
             }
           },
 
@@ -449,11 +483,35 @@ import {Human, Zombie, Medic, Guardian} from './models.js'
       >Начать заново</button>
       </div>
 
-      <div v-if="simulationEnd" class="end-message">
-        <h3>Симуляция завершена.</h3>
-        <p v-if="zombies.length === 0" class="win-message">Все зомби уничтожены!🎉</p>
-        <p v-else-if="humans.length === 0 && medics.length === 0 && guardians.length === 0">Все люди превратились в зомби!</p>
-        <p v-else-if="humans.length === 0 && medics.length === 0 && guardians.length > 0">Защитники устояли, но все мирные жители погибли...</p>
+      <div v-if="simulationEnd" class="simulation-end">
+        <div class="end-card" :class="{ 'win': zombies.length === 0, 'loss': zombies.length > 0 }">
+          <div class="end-icon">
+            <span v-if="zombies.length === 0">🎉</span>
+            <span v-else>☠️</span>
+          </div>
+          <div class="end-content">
+            <h3>{{ zombies.length === 0 ? 'Победа!' : 'Симуляция завершена'}}</h3>
+            <p v-if="zombies.length === 0" class="outcome-message">
+              Все зомби уничтожены!<br>
+              <small>Выжившие: {{ stats.healthy }} человек, {{ stats.medics }} медиков, {{ stats.guardians }} защитников.</small>
+            </p>
+
+            <p v-else-if="humans.length === 0 && medics.length === 0 && guardians.length === 0" class="outcome-message">
+              Зомби апокалипсис наступил!<br>
+              <small>Все люди превратились в {{ stats.zombies }} зомби.</small>
+            </p>
+
+            <p v-else-if="humans.length === 0 && medics.length === 0 && guardians.length > 0" class="outcome-message">
+              Защитники устояли<br>
+              <small>Но все мирные жители погибли (осталось {{ stats.guardians }} защитников).</small>
+            </p>
+
+            <div class="time-stats">
+              <span class="time-icon">⏱️</span>
+              Время симуляции: {{ stats.time }}
+            </div>
+          </div>
+        </div>
       </div>
 
       <div v-if="!simulationStarted" class="settings-panel">
@@ -601,6 +659,10 @@ import {Human, Zombie, Medic, Guardian} from './models.js'
         <div class="stat-item">
           <span class="stat-label">Защитники:</span>
           <span class="stat-value">{{ stats.guardians }}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Время:</span>
+          <span class="stat-value">{{ stats.time }}</span>
         </div>
       </div>
     </div>
@@ -857,22 +919,85 @@ import {Human, Zombie, Medic, Guardian} from './models.js'
   color: #333;
 }
 
-.end-message {
-  margin-top:20px;
-  padding:15px;
-  background: #f8f8f8;
-  border-radius: 5px;
-  border-left: 4px solid #e74c3c;
-  animation: fadeIn 0.5s;
+.simulation-end {
+  margin:25 px auto;
+  max-width: 500px;
+  animation: fadeInUp 0.6s ease-out;
 }
 
-.end-message h3 {
-  color: #e74c3c;
-  margin-bottom:5px;
+.end-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+  overflow: hidden;
+  display: flex;
+}
+
+.end-card.win {
+  border-top: 4px solid #2ecc71;
+}
+
+.end-card.loss {
+  border-top: 4px solid #e74c3c;
+}
+
+.end-icon {
+  background: rgba(0,0,0,0.05);
+  padding: 25px;
+  display: flex;
+  align-items: center;
+  font-size: 2.5rem;
+}
+
+.end-content {
+  padding:20px;
+  flex-grow: 1;
+}
+
+end-content h3 {
+  mardin: 0 0 10px 0;
+  font-size: 1.5rem;
+  color: #2c3e50;
+}
+
+.outcome-message {
+  margin: 0 0 15px 0;
+  line-height: 1.5;
+  font-size: 1.1rem;
+}
+
+.outcome-message small {
+  opacity: 0.8;
+  font-size: 0.9rem;
+}
+
+.time-stats {
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.95rem;
+}
+
+.time-icon {
+  margin-right: 8px;
+  font-size: 1.1rem;
 }
 
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 5; }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>
