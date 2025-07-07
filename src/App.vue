@@ -64,7 +64,8 @@ import {Guardian} from './entities/Guardian.js'
         showSettings:true,      // Флаг показа настроек
         tempSettings: null,     // Временные настройки
         settings: JSON.parse(JSON.stringify(defaultSettings)),  // Текущие настройки
-        defaultSettings         // Настройки по умолчанию
+        defaultSettings,         // Настройки по умолчанию
+        frameSkip: 0             // Для уменьшения количества кадров в 2 раза
       }
     },
     
@@ -387,6 +388,13 @@ import {Guardian} from './entities/Guardian.js'
           // Основной игровой цикл обновления
           update(currentTime) {
             if(!this.isRunning) return;   // Если симуляция не запущена - выходим
+
+            // Пропускаем каждый третий кадр
+            this.frameSkip = (this.frameSkip + 1) % 3;
+            if (this.frameSkip === 0) {
+              this.animationId = requestAnimationFrame(this.update);
+              return;
+            }
 
             // Вычисляем время, прошедшее с предыдущего кадра
             const deltaTime = currentTime - this.lastTime
